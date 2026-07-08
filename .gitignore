@@ -1,0 +1,19 @@
+# Python bytecode and local caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments, coverage, and packaging outputs
+.venv/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Generated LoCoMo evaluation artifacts
+evals/locomo/results/*.json
+evals/locomo/work/ledgers/*.sqlite*

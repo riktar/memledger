@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memledger"
+version = "0.1.0"
+description = "Self-maintaining memory for AI agents with a full audit trail"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+authors = [{name = "Riccardo Tartaglia"}]
+dependencies = [
+  "python-ulid>=3.0.0",
+  "PyYAML>=6.0",
+  "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+evals = [
+  "nltk>=3.9",
+]
+local = [
+  "fastembed>=0.3.6",
+  "sqlite-vec>=0.1.6",
+]
+dev = [
+  "nltk>=3.9",
+  "pytest>=8.2.0",
+  "ruff>=0.5.0",
+  "mypy>=1.10.0",
+  "types-PyYAML>=6.0.12",
+]
+
+[project.scripts]
+memledger = "memledger.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+memledger = ["py.typed", "assets/*", "assets/prompts/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N"]
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+strict = true
+packages = ["memledger"]
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*", "evals.*", "test_acceptance"]
+disallow_untyped_defs = false

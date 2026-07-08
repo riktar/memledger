@@ -1,0 +1,52 @@
+[
+  {
+    "sample_id": "conv-mini",
+    "conversation": {
+      "speaker_a": "Alice",
+      "speaker_b": "Bob",
+      "session_1_date_time": "7 May 2023",
+      "session_1": [
+        {
+          "speaker": "Alice",
+          "dia_id": "D1:1",
+          "text": "I started guitar lessons yesterday, on 7 May 2023."
+        },
+        {
+          "speaker": "Bob",
+          "dia_id": "D1:2",
+          "text": "That sounds fun."
+        }
+      ],
+      "session_2_date_time": "15 May 2023",
+      "session_2": [
+        {
+          "speaker": "Alice",
+          "dia_id": "D2:1",
+          "text": "I am still enjoying guitar practice."
+        },
+        {
+          "speaker": "Bob",
+          "dia_id": "D2:2",
+          "text": "Keep it up."
+        }
+      ]
+    },
+    "observation": {},
+    "session_summary": {},
+    "event_summary": [],
+    "qa": [
+      {
+        "question": "When did Alice start guitar lessons?",
+        "answer": "7 May 2023",
+        "evidence": ["D1:1"],
+        "category": 2
+      },
+      {
+        "question": "What instrument is Alice learning?",
+        "answer": "guitar",
+        "evidence": ["D1:1", "D2:1"],
+        "category": 4
+      }
+    ]
+  }
+]

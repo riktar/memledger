@@ -1,0 +1,16 @@
+name: default
+session_id: se_regression_default
+turns:
+  - role: user
+    text: My name is Lia.
+  - role: assistant
+    text: Noted.
+  - role: user
+    text: I prefer Python.
+expected_tuples:
+  - subject: user
+    relation: name
+    value: Lia
+  - subject: user
+    relation: preferred_language
+    value: python

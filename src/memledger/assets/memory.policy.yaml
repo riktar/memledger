@@ -1,0 +1,72 @@
+# memory.policy.yaml — MemLedger default policy
+# ---------------------------------------------------------------------
+# This file is canonicalized (RFC 8785) and hashed; the hash is recorded
+# in every event it influences. Edit freely: history is never rewritten,
+# old events stay bound to the old hash. Version your changes in git.
+# ---------------------------------------------------------------------
+
+policy_version: "1"
+spec_version: "0.1"
+
+working:
+  token_budget: 4000
+
+episodic:
+  retention: 90d
+  raw_retention: 30d
+
+instinct:
+  max_items: 30
+  autonomous: false
+  promote_when: "impact >= 5 AND sessions_seen >= 3"
+
+impact:
+  formula: "impact@v1"
+  weights:
+    feedback: 2.0
+    outcome: 1.5
+    recall_used: 0.5
+    repeated: 1.0
+  clamp: [0, 20]
+
+triage:
+  formula: "salience@v1"
+  threshold: 0.35
+  ineligible_roles: [tool]
+  always_extract_cues: [constraint, correction, preference, replacement]
+  weights:
+    density: 3.0
+    entities: 2.0
+    cues: 1.5
+  x0: 1.5
+  entity_cap: 5
+  cue_cap: 2
+
+extraction:
+  prompt: "extract@v1"
+  when: checkpoint
+  min_confidence: 0.70
+
+quarantine:
+  new_facts: 2
+
+retrieval:
+  candidates: 40
+  rerank: true
+  rerank_prompt: "rerank@v1"
+  k: 5
+  recency_half_life: 45d
+  impact_boost: 0.05
+  include_quarantined: true
+  log: sampled
+
+reflection:
+  prompt: "reflect@v1"
+  when: checkpoint
+
+deletion:
+  cascade_mode: tainted
+
+evals:
+  extraction_precision_min: 0.85
+  extraction_recall_min: 0.70
