@@ -99,7 +99,9 @@ reproducible, and reversible.
 ## Quickstart
 
 ```bash
-pip install memledger            # add [local] for CPU embeddings
+pip install .
+# or: pip install -e ".[dev]"
+# add [local] for CPU embeddings: pip install ".[local]"
 memledger init
 ```
 
@@ -126,6 +128,12 @@ print(report.tokens_saved_in_context)
 Runs on a laptop CPU with a local model, or with any cloud endpoint.
 Storage is a single SQLite file. No server, no vendor lock-in.
 
+## Documentation
+
+For the practical repo guide in English, including installation,
+the full CLI reference, and the main operational workflows, see
+[docs/usage.md](docs/usage.md).
+
 ## The Difference
 
 Why not just use another memory framework?
@@ -143,6 +151,9 @@ Why not just use another memory framework?
 
 `memledger why <id>` · `review` · `replay --at <ts> --cached` ·
 `rebuild` · `regenerate --model <m>` · `delete <id> --cascade` · `stats`
+
+For options, examples, and workflow explanations, see
+[docs/usage.md](docs/usage.md).
 
 ## Configuration
 
