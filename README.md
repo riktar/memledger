@@ -18,7 +18,7 @@ Every memory framework solves the forgetting problem: agents now remember
 things across sessions. But they create a new problem: memory becomes a
 black box. The agent "knows" things, but you can't tell where a fact came
 from, why it was kept, or why a user's preference from three weeks ago
-just vanished. When the memory fails — and it will — you can't debug it.
+just vanished. When the memory fails (and it will) you can't debug it.
 You can only delete everything and start over.
 
 **MemLedger is memory with the black box wide open.** Every fact your agent
@@ -155,40 +155,6 @@ MemLedger ships a benchmark harness for two long-term memory benchmarks:
 -   **LoCoMo** (in progress) — question answering over very long multi-session dialogs, with
     evidence dialog ids for retrieval scoring.
 
-Download the official benchmark files into `evals/benchmark_data/`:
-
-```bash
-python -m evals.download_benchmarks
-```
-
-Run retrieval-oriented benchmark scoring with any MemLedger memory backend.
-Without `--memory-model`, the harness uses the repository's mock backend,
-which is useful only as a smoke test.
-
-```bash
-python -m evals.run_benchmarks locomo \
-  evals/benchmark_data/locomo.json \
-  --memory-model openai-compat:http://localhost:11434/v1|qwen3:4b \
-  --output evals/results/locomo-qwen3.json
-```
-
-```bash
-python -m evals.run_benchmarks longmemeval \
-  evals/benchmark_data/longmemeval_oracle.json \
-  --memory-model openai-compat:http://localhost:11434/v1|qwen3:4b \
-  --output evals/results/longmemeval-oracle-qwen3.json
-```
-
-The benchmark summary reports retrieval metrics over the evidence labels:
-
--   `session_hit_rate`, `session_recall`, `session_mrr`
--   `turn_hit_rate`, `turn_recall`, `turn_mrr`
-
-If you also provide `--reader-model`, the harness generates answers from the
-recalled memories, adds a lightweight exact-match score, and can export
-`question_id`/`hypothesis` JSONL predictions via `--predictions-jsonl`.
-For LongMemEval, that JSONL can be fed into the official scorer shipped by the
-benchmark authors.
 
 ## Project status & roadmap
 
