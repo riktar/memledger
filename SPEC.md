@@ -236,7 +236,7 @@ this: rebuild and compare hashes. Passing rebuild is the conformance test.
 - Framework prompts (`extract`, `rerank`, `reflect`, `text_form`
   templates) live in a versioned registry (`prompts/extract.v1.md`),
   hashed like policies. The quickstart ships them; devs may fork them.
-- Deterministic rule formulas (`salience@v1`, `text_form@v1`) live in the
+- Deterministic rule formulas (`salience@v1`, `salience@v2`, `text_form@v1`) live in the
   same registry. Because rule events carry no `llm` block, their formula
   hash must be pinned elsewhere: policy canonicalization resolves every
   registry id referenced by the policy (e.g. `triage.formula`) to its

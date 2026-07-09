@@ -30,10 +30,12 @@ impact:
   clamp: [0, 20]
 
 triage:
-  formula: "salience@v1"
+  formula: "salience@v2"
   threshold: 0.35
   ineligible_roles: [tool]
   always_extract_cues: [constraint, correction, preference, replacement]
+  density_length_cap: 6
+  density_length_power: 2.0
   weights:
     density: 3.0
     entities: 2.0

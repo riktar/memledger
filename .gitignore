@@ -5,6 +5,9 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 
+# Local temporary ledgers
+.tmp-*.db*
+
 # Virtual environments, coverage, and packaging outputs
 .venv/
 .coverage

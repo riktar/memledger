@@ -15,6 +15,7 @@ from memledger.models.mock import MockModelBackend
 from memledger.models.openai_compat import OpenAICompatBackend
 from memledger.projection import StateTransitionError, validate_state_transition
 from memledger.session import Session
+from memledger.triage import score_text
 
 LedgerFactory = Callable[..., Ledger]
 
@@ -366,6 +367,49 @@ def test_triage_is_deterministic_and_regenerate_recovers_skips(
     assert ledger_one.store.find_record_by_key("user", "works_at", '"ToolCorp"') is None
     assert ledger_one.rebuild() is True
     assert ledger_one.store.find_record_by_key("user", "works_at", '"Acme"') is not None
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_verdict"),
+    [
+        ("noted", "skip"),
+        ("np", "skip"),
+        ("lol", "skip"),
+        ("perfect, done", "skip"),
+        ("you're welcome", "skip"),
+        ("sounds good to me", "skip"),
+        ("the deploy failed because of the env vars", "extract"),
+        ("I prefer Python", "extract"),
+    ],
+)
+def test_triage_short_turn_calibration_regression(text: str, expected_verdict: str) -> None:
+    policy = Policy.default()
+    result = score_text(text, "assistant", policy)
+
+    assert result.formula == "salience@v2"
+    assert result.verdict == expected_verdict
+
+
+def test_triage_short_turn_regression_preserves_substantive_ordering() -> None:
+    policy = Policy.default()
+
+    filler = score_text("sounds good to me", "assistant", policy)
+    substantive = score_text("the deploy failed because of the env vars", "assistant", policy)
+
+    assert filler.verdict == "skip"
+    assert substantive.verdict == "extract"
+    assert substantive.salience > filler.salience
+
+
+def test_default_mock_backend_warns_when_memory_formation_uses_it(tmp_path: Path) -> None:
+    ledger = Ledger(path=str(tmp_path / "warning.db"))
+    try:
+        session = ledger.session(user_id="warn")
+        session.observe(user="I prefer Python.", assistant="Noted.")
+        with pytest.warns(RuntimeWarning, match="using mock backend"):
+            session.checkpoint()
+    finally:
+        ledger.close()
 
 
 def test_retrieval_can_exclude_quarantined_records(

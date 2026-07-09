@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run test suite
+        run: python -m pytest
+
+      - name: Build fixture ledger and verify rebuild
+        run: |
+          export LEDGER_DB="$RUNNER_TEMP/memledger-ci.db"
+          python - <<'PY'
+          import os
+
+          from memledger import Ledger
+          from memledger.models.mock import MockModelBackend
+
+          ledger = Ledger(path=os.environ["LEDGER_DB"], model_backend=MockModelBackend())
+          session = ledger.session(user_id="ci")
+          session.observe(
+              user="I prefer Python and work at Acme.",
+              assistant="Noted.",
+          )
+          session.observe(
+              user="the deploy failed because of the env vars",
+              assistant="Investigating.",
+          )
+          session.checkpoint()
+          ledger.close()
+          PY
+          memledger rebuild --db "$LEDGER_DB"

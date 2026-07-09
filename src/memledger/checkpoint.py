@@ -69,7 +69,7 @@ def run_checkpoint(session: Session) -> CheckpointReport:
         triage_event = make_event(
             type="triaged",
             actor="rule",
-            cause=Cause(kind="rule", ref="salience@v1", detail="checkpoint triage"),
+            cause=Cause(kind="rule", ref=result.formula, detail="checkpoint triage"),
             policy_hash=policy.hash,
             payload=result.to_payload(turn_id),
             session=session.id,

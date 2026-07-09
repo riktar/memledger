@@ -13,12 +13,13 @@ in WHICH ORDER. Where this document and SPEC.md disagree, SPEC.md wins.
   - `memledger[local]` → `fastembed` (CPU embeddings) and `sqlite-vec`
   - `memledger[dev]` → `pytest`, `ruff`, `mypy`
   No LangChain, no heavy frameworks in the core.
-- Triage (`salience@v1`) is PURELY LEXICAL: the normative signal and
-  formula definitions live in `prompts/salience.v1.md` (NFC + tokenizer,
+- Triage (`salience@v2` by default, `salience@v1` still supported for
+   older policy hashes) is PURELY LEXICAL: the normative signal and
+   formula definitions live in `prompts/salience.v2.md` (NFC + tokenizer,
   embedded stopword list, regex cue patterns). NO NLP models, no spaCy,
   no taggers: byte-identical output on every machine is a hard
-  requirement — `rebuild` depends on it. Do NOT build a POS/NER variant
-  in 0.1; a future `salience@v2` may use one only by pinning the model
+   requirement — `rebuild` depends on it. Do NOT build a POS/NER variant
+   in 0.1; a future `salience@v3` may use one only by pinning the model
   and recording its digest like an LLM `model_digest`.
 - Storage: SQLite via stdlib `sqlite3`. One file per ledger. Single
   writer enforced (SPEC §9.5): acquire an exclusive lock file next to
@@ -52,7 +53,7 @@ memledger/
 │   ├── projection.py          # records table, state machine §5.1, cascade/tainted §9.3
 │   ├── tuples.py              # Tuple model §5, text_form template engine (text_form@v1)
 │   ├── policy.py              # policy load, canonicalize, hash (resolves referenced formula ids to hashes, SPEC §8); impact@v1 evaluator
-│   ├── triage.py              # salience@v1 purely lexical scorer; prompts/salience.v1.md is normative
+│   ├── triage.py              # salience@v2 purely lexical scorer; prompts/salience.v2.md is normative
 │   ├── prompts.py             # prompt registry: load, hash, render placeholders
 │   ├── cache.py               # llm_cache table; key = H(model‖prompt_hash‖input_hash‖params)
 │   ├── models/
@@ -118,7 +119,7 @@ providers, use `OPENROUTER_API_KEY` when the host is `openrouter.ai`, otherwise
 use `OPENAI_API_KEY`. CLI examples must quote the full spec because it contains `|`.
 
 Checkpoint internals (order is normative):
-1. Triage pre-pass (rule, `salience@v1`, zero LLM cost): score every raw
+1. Triage pre-pass (rule, `salience@v2`, zero LLM cost): score every raw
    turn of the session, emit one `triaged` event per turn. Verdict order
    is normative: `ineligible` (role-based, per `triage.ineligible_roles`)
    → cue bypass (`always_extract_cues`) → threshold. Only "extract"

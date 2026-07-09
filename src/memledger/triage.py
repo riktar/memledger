@@ -47,26 +47,37 @@ CUE_PATTERNS = {
     ),
 }
 
+TRIAGE_FORMULA_V1 = "salience@v1"
+TRIAGE_FORMULA_V2 = "salience@v2"
+DEFAULT_TRIAGE_FORMULA = TRIAGE_FORMULA_V2
+
 
 @dataclass(slots=True)
 class TriageResult:
     salience: float
     lexical_density: float
+    token_count: int | None
+    length_norm: float | None
     entity_norm: float
     cue_classes: list[str]
     verdict: str
-    formula: str = "salience@v1"
+    formula: str = DEFAULT_TRIAGE_FORMULA
 
     def to_payload(self, turn_id: str) -> dict[str, object]:
+        signals: dict[str, object] = {
+            "lexical_density": self.lexical_density,
+            "entity_norm": self.entity_norm,
+            "cue_classes": self.cue_classes,
+            "salience": self.salience,
+        }
+        if self.token_count is not None:
+            signals["token_count"] = self.token_count
+        if self.length_norm is not None:
+            signals["length_norm"] = self.length_norm
         return {
             "turn": turn_id,
             "salience": self.salience,
-            "signals": {
-                "lexical_density": self.lexical_density,
-                "entity_norm": self.entity_norm,
-                "cue_classes": self.cue_classes,
-                "salience": self.salience,
-            },
+            "signals": signals,
             "verdict": self.verdict,
             "formula": self.formula,
         }
@@ -105,12 +116,34 @@ def tokenize(text: str) -> tuple[list[str], list[bool]]:
     return tokens, sentence_initial
 
 
+def _length_norm(total_tokens: int, *, cap: int) -> float | None:
+    if total_tokens == 0:
+        return 0.0
+    if cap <= 0:
+        return None
+    return min(total_tokens, cap) / cap
+
+
 def score_text(text: str, role: str, policy: Policy) -> TriageResult:
     tokens, sentence_initial = tokenize(text)
     lowered = [token.lower() for token in tokens]
     total_tokens = len(tokens)
     stopword_tokens = sum(1 for token in lowered if token in STOPWORDS)
     lexical_density = 0.0 if total_tokens == 0 else 1 - (stopword_tokens / total_tokens)
+
+    formula = str(policy.get("triage", "formula", default=DEFAULT_TRIAGE_FORMULA))
+    token_count: int | None = None
+    length_norm: float | None = None
+    density_signal = lexical_density
+    if formula == TRIAGE_FORMULA_V2:
+        token_count = total_tokens
+        length_cap = int(policy.get("triage", "density_length_cap", default=6))
+        length_power = float(policy.get("triage", "density_length_power", default=2.0))
+        length_norm = _length_norm(total_tokens, cap=length_cap)
+        if length_norm is not None:
+            density_signal = lexical_density * math.pow(length_norm, length_power)
+    elif formula != TRIAGE_FORMULA_V1:
+        raise ValueError(f"unsupported triage formula: {formula}")
 
     entity_count = 0
     for token, is_sentence_initial in zip(tokens, sentence_initial, strict=True):
@@ -131,7 +164,7 @@ def score_text(text: str, role: str, policy: Policy) -> TriageResult:
     cues_norm = min(len(cue_classes), cue_cap) / cue_cap if cue_cap else 0.0
 
     z = (
-        float(policy.get("triage", "weights", "density", default=3.0)) * lexical_density
+        float(policy.get("triage", "weights", "density", default=3.0)) * density_signal
         + float(policy.get("triage", "weights", "entities", default=2.0)) * entity_norm
         + float(policy.get("triage", "weights", "cues", default=1.5)) * cues_norm
     )
@@ -151,7 +184,10 @@ def score_text(text: str, role: str, policy: Policy) -> TriageResult:
     return TriageResult(
         salience=round(salience, 6),
         lexical_density=round(lexical_density, 6),
+        token_count=token_count,
+        length_norm=None if length_norm is None else round(length_norm, 6),
         entity_norm=round(entity_norm, 6),
         cue_classes=cue_classes,
         verdict=verdict,
+        formula=formula,
     )

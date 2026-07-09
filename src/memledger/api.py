@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -75,6 +76,8 @@ class Ledger:
         self.registry = PromptRegistry()
         self.cache_mode = cache
         self.cache = DeterministicCache(self.store.connection)
+        self._using_default_mock_backend = model_backend is None and memory_model is None
+        self._mock_backend_warning_emitted = False
         self.model_backend = model_backend or self._build_backend(memory_model)
         self.embedder = embedder
         self.projection = Projection(self.store, self.policy)
@@ -110,6 +113,17 @@ class Ledger:
     def session(self, user_id: str | None = None) -> Session:
         return Session(self, user_id=user_id)
 
+    def _warn_if_using_default_mock_backend(self) -> None:
+        if not self._using_default_mock_backend or self._mock_backend_warning_emitted:
+            return
+        warnings.warn(
+            "using mock backend: memories are deterministic test data, not real model extractions; "
+            "set memory_model=... or pass model_backend=... to enable real memory formation",
+            RuntimeWarning,
+            stacklevel=3,
+        )
+        self._mock_backend_warning_emitted = True
+
     def call_model_json(
         self,
         *,
@@ -119,6 +133,7 @@ class Ledger:
         require_cache: bool = False,
         backend: ModelBackend | None = None,
     ) -> tuple[dict[str, Any], LLMCall]:
+        self._warn_if_using_default_mock_backend()
         prompt = self.registry.render(prompt_id, placeholders)
         input_hash = sha256_hex({"prompt": prompt.content, "placeholders": placeholders})
         active_backend = backend or self.model_backend

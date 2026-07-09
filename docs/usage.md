@@ -74,7 +74,8 @@ The defaults are copied next to the target database path.
 
 If you create `Ledger(...)` without a `memory_model`, MemLedger uses the
 mock backend. That is useful for tests and smoke runs, but not for real
-memory extraction.
+memory extraction. MemLedger emits a runtime warning the first time a
+checkpoint, rerank, or reflection call would actually use that default.
 
 ### OpenAI-compatible backends
 

@@ -173,4 +173,4 @@ def merge_dicts(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]
 
 
 def registry_ref_allowlist() -> set[str]:
-    return {"extract@v1", "rerank@v1", "reflect@v1", "salience@v1"}
+    return {"extract@v1", "rerank@v1", "reflect@v1", "salience@v1", "salience@v2"}

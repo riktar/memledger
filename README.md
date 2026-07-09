@@ -127,6 +127,10 @@ report = session.checkpoint()        # extract → reflect → promote
 print(report.tokens_saved_in_context)
 ```
 
+If you omit `memory_model` and do not pass `model_backend`, MemLedger
+falls back to a deterministic mock backend intended for tests and emits a
+runtime warning the first time memory formation would use it.
+
 Runs on a laptop CPU with a local model, or with any cloud endpoint.
 Storage is a single SQLite file. No server, no vendor lock-in.
 

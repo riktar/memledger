@@ -15,6 +15,7 @@ PROMPT_FILE_MAP = {
     "rerank@v1": "rerank.v1.md",
     "reflect@v1": "reflect.v1.md",
     "salience@v1": "salience.v1.md",
+    "salience@v2": "salience.v2.md",
     "text_form@v1": "text_form.v1.md",
 }
 
