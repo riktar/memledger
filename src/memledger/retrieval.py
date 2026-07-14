@@ -71,6 +71,8 @@ def stage1_candidates(
                 RuntimeWarning,
                 stacklevel=2,
             )
+            for record_id, stage1_score in store.search_record_ids_fts(query, limit):
+                hit_scores.setdefault(record_id, stage1_score)
     candidates: list[Candidate] = []
     seen: set[str] = set()
     half_life_days = max(policy.recency_half_life().total_seconds() / 86400.0, 1.0)
