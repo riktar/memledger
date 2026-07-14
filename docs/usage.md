@@ -115,6 +115,53 @@ Quote every `openai-compat:...|...` model string in the shell because the
 memledger regenerate --db ./memory.db --model 'openai-compat:http://localhost:11434/v1|qwen3:4b'
 ```
 
+### Local embeddings for hybrid recall
+
+Install `memledger[local]` and pass an embedder when you want
+`session.recall(...)` to combine FTS5 with a vector candidate pass.
+
+```python
+from memledger import Ledger, Policy
+from memledger.embeddings.fastembed_local import FastEmbedLocal
+
+ledger = Ledger(
+   path="./memory.db",
+   policy=Policy.default(),
+   memory_model="openai-compat:http://localhost:11434/v1|qwen3:4b",
+   embedder=FastEmbedLocal(),
+)
+```
+
+Behavior:
+
+- Without an `embedder`, recall is FTS-only.
+- With an `embedder`, stage-1 retrieval splits the configured candidate
+  budget between FTS and vector search, merges the two candidate sets,
+  and then applies the usual pre-scoring and optional rerank.
+- `recalled` audit events include `index_version`, so you can distinguish
+  `fts5` from `hybrid:fastembed-local-v1` or another embedder version.
+- If vector retrieval fails at runtime, MemLedger warns and falls back to
+  FTS-only recall instead of failing the request.
+
+If you attach an embedder to an existing ledger, backfill the current
+records once:
+
+```python
+indexed = ledger.reindex_vectors()
+print(indexed)
+```
+
+`reindex_vectors()` returns the number of newly indexed active or
+quarantined records with non-empty `text_form`. It is safe to run more than
+once.
+
+When an embedder is attached, these maintenance flows also refresh the
+vector index automatically:
+
+- `ledger.replay(...)`
+- `ledger.rebuild()` after a successful conformance check
+- `ledger.regenerate(...)`
+
 ## CLI overview
 
 The CLI entry point is `memledger`.
@@ -404,6 +451,10 @@ Use these commands together when you need to understand memory behavior:
 
 This is the main workflow for debugging bad extraction, memory poisoning,
 missing promotions, or unexpected recall.
+
+When you are debugging retrieval quality, inspect `recalled` events in
+`memledger log`: the payload records the selected IDs, the reasons, and the
+`index_version` used for that recall path.
 
 ### 6. Determinism and recovery workflow
 

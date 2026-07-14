@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memledger"
-version = "0.1.1"
+version = "0.1.2"
 description = "Self-maintaining memory for AI agents with a full audit trail"
 readme = "README.md"
 requires-python = ">=3.11"

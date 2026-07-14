@@ -103,7 +103,7 @@ reproducible, and reversible.
 ```bash
 pip install .
 # or: pip install -e ".[dev]"
-# add [local] for CPU embeddings: pip install ".[local]"
+# add [local] for optional hybrid recall: pip install -e ".[dev,local]"
 memledger init
 ```
 
@@ -130,6 +130,25 @@ print(report.tokens_saved_in_context)
 If you omit `memory_model` and do not pass `model_backend`, MemLedger
 falls back to a deterministic mock backend intended for tests and emits a
 runtime warning the first time memory formation would use it.
+
+If you install `memledger[local]`, you can add a local embedder to make
+`session.recall(...)` combine FTS with a vector candidate pass:
+
+```python
+from memledger import Ledger, Policy
+from memledger.embeddings.fastembed_local import FastEmbedLocal
+
+ledger = Ledger(
+    "./memory.db",
+    policy=Policy.default(),
+    memory_model="openai-compat:http://localhost:11434/v1|qwen3:4b",
+    embedder=FastEmbedLocal(),
+)
+```
+
+Existing ledgers can be backfilled with `ledger.reindex_vectors()`. When an
+embedder is attached, `replay()`, `rebuild()`, and `regenerate()` also refresh
+the vector index automatically.
 
 Runs on a laptop CPU with a local model, or with any cloud endpoint.
 Storage is a single SQLite file. No server, no vendor lock-in.
