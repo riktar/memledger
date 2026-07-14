@@ -2,20 +2,47 @@
 
 from __future__ import annotations
 
+import array
 import json
+import math
 import os
 import re
 import sqlite3
+import warnings
 import weakref
 from collections.abc import Iterable
 from contextlib import contextmanager
 from pathlib import Path
 
+from memledger.embeddings.base import Embedder
 from memledger.events import Event, event_from_dict
 from memledger.ids import canonical_json, sha256_hex
 from memledger.tuples import MemoryTuple
 
 _QUERY_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
+VECTOR_INDEX_VERSION_META = "vector_index_version"
+_NON_INDEXED_STATUSES = frozenset({"deleted", "superseded", "expired"})
+
+
+def _pack_vector(values: list[float]) -> bytes:
+    return array.array("f", values).tobytes()
+
+
+def _unpack_vector(blob: bytes) -> list[float]:
+    packed = array.array("f")
+    packed.frombytes(blob)
+    return list(packed)
+
+
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    if len(left) != len(right) or not left:
+        return 0.0
+    dot = sum(a * b for a, b in zip(left, right, strict=True))
+    norm_left = math.sqrt(sum(a * a for a in left))
+    norm_right = math.sqrt(sum(b * b for b in right))
+    if norm_left == 0.0 or norm_right == 0.0:
+        return 0.0
+    return dot / (norm_left * norm_right)
 
 
 class LedgerLockError(RuntimeError):
@@ -25,7 +52,7 @@ class LedgerLockError(RuntimeError):
 class LedgerStore:
     """Low-level SQLite event store and projection persistence."""
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(self, path: str | Path, *, embedder: Embedder | None = None) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.lock_path = self.path.with_suffix(f"{self.path.suffix}.lock")
@@ -35,7 +62,10 @@ class LedgerStore:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self._transaction_depth = 0
+        self.embedder = embedder
         self._init_schema()
+        if embedder is not None:
+            self.ensure_vector_index_version(embedder.index_version)
 
     @contextmanager
     def transaction(self) -> Iterable[None]:
@@ -248,10 +278,52 @@ class LedgerStore:
             "INSERT INTO fts (target_id, kind, text) VALUES (?, 'record', ?)",
             (record.id, record.text_form),
         )
+        if record.status in _NON_INDEXED_STATUSES:
+            self._delete_vector(record.id)
+        elif self.embedder is not None and record.text_form.strip():
+            try:
+                self.ensure_vector_index_version(self.embedder.index_version)
+                vector = self.embedder.embed([record.text_form])[0]
+                self._upsert_vector(record.id, vector, self.embedder.index_version)
+            except Exception as exc:
+                warnings.warn(
+                    f"skipped vector index for {record.id}: {exc}",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
         self._maybe_commit()
+
+    def ensure_vector_index_version(self, index_version: str) -> None:
+        stored = self.read_meta(VECTOR_INDEX_VERSION_META)
+        if stored is not None and stored != index_version:
+            self.connection.execute("DELETE FROM vectors")
+        if stored != index_version:
+            self.write_meta(VECTOR_INDEX_VERSION_META, index_version)
+
+    def has_vector(self, record_id: str, index_version: str) -> bool:
+        row = self.connection.execute(
+            "SELECT 1 FROM vectors WHERE id = ? AND index_version = ?",
+            (record_id, index_version),
+        ).fetchone()
+        return row is not None
+
+    def _upsert_vector(self, record_id: str, vector: list[float], index_version: str) -> None:
+        self.connection.execute(
+            """
+            INSERT INTO vectors (id, index_version, vector) VALUES (?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                index_version = excluded.index_version,
+                vector = excluded.vector
+            """,
+            (record_id, index_version, _pack_vector(vector)),
+        )
+
+    def _delete_vector(self, record_id: str) -> None:
+        self.connection.execute("DELETE FROM vectors WHERE id = ?", (record_id,))
 
     def delete_record_index(self, record_id: str) -> None:
         self.connection.execute("DELETE FROM fts WHERE target_id = ? AND kind = 'record'", (record_id,))
+        self._delete_vector(record_id)
         self._maybe_commit()
 
     def get_record(self, record_id: str) -> MemoryTuple | None:
@@ -352,6 +424,31 @@ class LedgerStore:
             score = sum(1 for token in tokens if token in text)
             if score > 0:
                 scored_rows.append((str(row[0]), float(score)))
+        scored_rows.sort(key=lambda item: (-item[1], item[0]))
+        return scored_rows[:limit]
+
+    def search_record_ids_vector(
+        self,
+        query_vec: list[float],
+        index_version: str,
+        limit: int,
+    ) -> list[tuple[str, float]]:
+        if limit <= 0:
+            return []
+        rows = self.connection.execute(
+            """
+            SELECT v.id, v.vector
+            FROM vectors v
+            INNER JOIN records r ON r.id = v.id
+            WHERE v.index_version = ? AND r.status NOT IN ('deleted', 'superseded', 'expired')
+            """,
+            (index_version,),
+        ).fetchall()
+        scored_rows: list[tuple[str, float]] = []
+        for row in rows:
+            score = _cosine_similarity(query_vec, _unpack_vector(bytes(row[1])))
+            if score > 0.0:
+                scored_rows.append((str(row[0]), score))
         scored_rows.sort(key=lambda item: (-item[1], item[0]))
         return scored_rows[:limit]
 

@@ -72,7 +72,7 @@ class Ledger:
         embedder: Embedder | None = None,
     ) -> None:
         self.policy = policy or Policy.default()
-        self.store = LedgerStore(path)
+        self.store = LedgerStore(path, embedder=embedder)
         self.registry = PromptRegistry()
         self.cache_mode = cache
         self.cache = DeterministicCache(self.store.connection)
@@ -191,7 +191,10 @@ class Ledger:
         self.store.clear_projections()
         self.projection.replay_events(events)
         after = self.store.projection_digest()
-        return before == after
+        ok = before == after
+        if ok:
+            self.reindex_vectors()
+        return ok
 
     def replay(self, *, at: str | None = None, cached: bool = False) -> bool:
         events = self.store.iter_events(at=at)
@@ -310,7 +313,20 @@ class Ledger:
             self.append_event(event)
             if created_ids:
                 sessions_reprocessed += 1
+        self.reindex_vectors()
         return sessions_reprocessed
+
+    def reindex_vectors(self) -> int:
+        if self.embedder is None:
+            return 0
+        index_version = self.embedder.index_version
+        self.store.ensure_vector_index_version(index_version)
+        indexed = 0
+        for record in self.projection.active_or_quarantined_records():
+            if not self.store.has_vector(record.id, index_version):
+                self.store.upsert_record(record)
+                indexed += 1
+        return indexed
 
     def delete(self, record_id: str, *, cascade: bool = False, reason: str = "manual") -> None:
         cascade_ids, tainted_ids = self.projection.plan_delete(record_id) if cascade else ([], [])

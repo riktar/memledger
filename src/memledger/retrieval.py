@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import math
+import warnings
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from memledger.embeddings.base import Embedder
 from memledger.events import Cause, make_event
 from memledger.ids import sha256_hex
 from memledger.ledger import LedgerStore
@@ -40,15 +42,36 @@ def stage1_candidates(
     store: LedgerStore,
     policy: Policy,
     query: str,
+    embedder: Embedder | None = None,
 ) -> list[Candidate]:
     limit = int(policy.get("retrieval", "candidates", default=40))
+    fts_limit = limit // 2
+    vector_limit = limit - fts_limit
     include_quarantined = bool(policy.get("retrieval", "include_quarantined", default=True))
-    hits = store.search_record_ids_fts(query, limit)
+    hit_scores: dict[str, float] = {}
+    for record_id, stage1_score in store.search_record_ids_fts(query, fts_limit):
+        hit_scores[record_id] = stage1_score
+    if embedder is not None and vector_limit > 0:
+        try:
+            query_vec = embedder.embed([query])[0]
+            for record_id, stage1_score in store.search_record_ids_vector(
+                query_vec,
+                embedder.index_version,
+                vector_limit,
+            ):
+                if record_id not in hit_scores:
+                    hit_scores[record_id] = stage1_score
+        except Exception as exc:
+            warnings.warn(
+                f"vector retrieval failed, falling back to FTS-only: {exc}",
+                RuntimeWarning,
+                stacklevel=2,
+            )
     candidates: list[Candidate] = []
     seen: set[str] = set()
     half_life_days = max(policy.recency_half_life().total_seconds() / 86400.0, 1.0)
     impact_boost = float(policy.get("retrieval", "impact_boost", default=0.05))
-    for record_id, stage1_score in hits:
+    for record_id, stage1_score in hit_scores.items():
         if record_id in seen:
             continue
         record = store.get_record(record_id)
@@ -87,7 +110,7 @@ def retrieve(
 ) -> list[MemoryTuple]:
     policy = session.ledger.policy
     requested_k = k or policy.retrieval_k
-    candidates = stage1_candidates(session.ledger.store, policy, query)
+    candidates = stage1_candidates(session.ledger.store, policy, query, session.ledger.embedder)
     selected = candidates[:requested_k]
     reasons = {candidate.record.id: "top pre-score candidate" for candidate in selected}
 
@@ -151,7 +174,7 @@ def retrieve(
                 "candidates": logged_candidates,
                 "selected": selected_ids,
                 "reasons": reasons,
-                "index_version": "fts5",
+                "index_version": "hybrid" if session.ledger.embedder is not None else "fts5",
             },
             session=session.id,
             user=session.user_id,
