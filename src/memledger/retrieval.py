@@ -45,8 +45,12 @@ def stage1_candidates(
     embedder: Embedder | None = None,
 ) -> list[Candidate]:
     limit = int(policy.get("retrieval", "candidates", default=40))
-    fts_limit = limit // 2
-    vector_limit = limit - fts_limit
+    if embedder is not None:
+        fts_limit = limit // 2
+        vector_limit = limit - fts_limit
+    else:
+        fts_limit = limit
+        vector_limit = 0
     include_quarantined = bool(policy.get("retrieval", "include_quarantined", default=True))
     hit_scores: dict[str, float] = {}
     for record_id, stage1_score in store.search_record_ids_fts(query, fts_limit):

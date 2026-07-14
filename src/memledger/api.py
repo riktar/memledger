@@ -205,6 +205,7 @@ class Ledger:
                 self.cache.require(event.llm.cache_key)
         self.store.clear_projections()
         self.projection.replay_events(events)
+        self.reindex_vectors()
         return True
 
     def regenerate(self, model: str | None = None, prompt: str = "extract@v1") -> int:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -178,6 +179,29 @@ def test_hybrid_surfaces_lexically_disjoint_fact(tmp_path: Path) -> None:
   assert record_a.id in hybrid_ids
   assert record_b.id in hybrid_ids
   ledger.close()
+
+
+def test_stage1_without_embedder_uses_full_fts_budget() -> None:
+  store = MagicMock()
+  store.search_record_ids_fts.return_value = []
+  policy = _recall_policy().copy_with_updates({"retrieval": {"candidates": 40}})
+
+  stage1_candidates(store, policy, "python keyword", embedder=None)
+
+  store.search_record_ids_fts.assert_called_once_with("python keyword", 40)
+
+
+def test_stage1_with_embedder_splits_candidate_budget() -> None:
+  store = MagicMock()
+  store.search_record_ids_fts.return_value = []
+  embedder = MockEmbedder({"python keyword": [1.0, 0.0]})
+  policy = _recall_policy().copy_with_updates({"retrieval": {"candidates": 40}})
+
+  stage1_candidates(store, policy, "python keyword", embedder=embedder)
+
+  store.search_record_ids_fts.assert_called_once_with("python keyword", 20)
+  store.search_record_ids_vector.assert_called_once()
+  assert store.search_record_ids_vector.call_args.args[2] == 20
 
 
 def test_embedder_none_matches_fts_baseline(tmp_path: Path) -> None:
